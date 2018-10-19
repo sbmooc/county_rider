@@ -5,15 +5,22 @@ A module to collect details from users and to return an authorization token for 
 from urllib import request
 import json
 import pandas as pd
+import yaml
+
+import pickle
 
 
 def collect_user_details():
-    access_token = input('What is your strava access token?')
-    user_id = input('What is your user id?')
+
+    with open('config.yaml') as config:
+        user_details = yaml.safe_load(config)
+
+    user_id = str(user_details['user_id'])
+    access_token = user_details['token']
 
     return user_id, access_token
 
-def collect_all_user_activities(token: str, user_id: str):
+def collect_all_user_activities(user_id: str, token: str):
 
     number_activities_request = request.Request(f'https://www.strava.com/api/v3/athletes/{user_id}/stats',
                                   headers={"Authorization":"Bearer " + token},
@@ -43,7 +50,7 @@ def collect_all_user_activities(token: str, user_id: str):
 
 def collect_activities_streams(activities: list, token: str):
 
-    complete_latlng = pd.Series()
+    complete_latlng = []
 
     for num, activity in enumerate(activities):
 
@@ -60,11 +67,20 @@ def collect_activities_streams(activities: list, token: str):
             print(Exception)
             continue
 
-        lat_long_of_stream = pd.Series(json.loads(response.read())['latlng']['data'], name=activity[1]).astype('object')
+        lat_lng_of_ride = pd.Series(json.loads(response.read())['latlng']['data'], name=activity[1]).astype('object')
 
-        complete_latlng = pd.concat([complete_latlng, lat_long_of_stream], axis=1, ignore_index=True)
+        complete_latlng += [lat_lng_of_ride]
 
-    complete_latlng.to_pickle('Data.pkl')
+        #complete_latlng = pd.concat([complete_latlng, lat_long_of_stream], axis=1, ignore_index=True)
+
+    with open('Data3.pkl', 'wb') as pklfile:
+        pickle.dump(complete_latlng, pklfile)
+
+    #complete_latlng.to_pickle('Data.pkl')
 
     return 'Success'
+
+details = collect_user_details()
+activities = collect_all_user_activities(*details)
+collect_activities_streams(*activities)
 

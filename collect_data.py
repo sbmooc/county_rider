@@ -1,7 +1,7 @@
 """
 A module to collect details from users and to return an authorization token for use.
 """
-
+import logging
 from urllib import request
 import json
 import pandas as pd
@@ -9,6 +9,12 @@ import yaml
 
 import pickle
 
+
+#TODO - ADD LOGGING
+
+logger = logging.getLogger(__name__)
+
+api_url = 'https://www.strava.com/api/v3'
 
 def collect_user_details():
 
@@ -20,67 +26,61 @@ def collect_user_details():
 
     return user_id, access_token
 
-def collect_all_user_activities(user_id: str, token: str):
 
-    number_activities_request = request.Request(f'https://www.strava.com/api/v3/athletes/{user_id}/stats',
-                                  headers={"Authorization":"Bearer " + token},
-                                  method='GET')
+def collect_activities(page, token):
 
-    number_activities = json.loads(request.urlopen(number_activities_request).read())['all_ride_totals']['count']
+    url_req = request.Request(f'{api_url}/athlete/activities?page={page}&per_page=100',
+                              headers={"Authorization":"Bearer " + token},
+                              method='GET')
 
-    number_of_pages_required = (number_activities // 100) + 2
+    return request.urlopen(url_req).read()
+
+
+# TODO mock out request to test for this
+def collect_all_user_activities(token: str):
 
     list_ids = []
 
-    # TODO Should add in a while loop here to avoid additional request. Keep requesting data until json.loads is empty.
+    complete = False
+    page = 1
+    while not complete:
 
-    for page in range(1, number_of_pages_required):
+        activities = json.loads(collect_activities(page, token))
 
-        activity_request = request.Request(f'https://www.strava.com/api/v3/athlete/activities?page={page}&per_page=100',
-                                      headers={"Authorization":"Bearer " + token},
-                                      method='GET')
-
-        all_activities = request.urlopen(activity_request)
-
-        for p in json.loads(all_activities.read()):
-            if p['type'] == 'Ride':
-                list_ids.append((p['id'], p['name']))
+        if activities:
+            for p in activities:
+                if p['type'] == 'Ride':
+                    list_ids.append((p['id'], p['name']))
+            page += 1
+        else:
+            complete = True
 
     return list_ids, token
 
+
 def collect_activities_streams(activities: list, token: str):
 
-    complete_latlng = []
+    total_latlong = []
 
     for num, activity in enumerate(activities):
 
         still_to_go = len(activities) - num
-        print(f'requesting {activity[1]}')
-        print(f'just {still_to_go} to go')
+        logger.info(f'Requesting {activity[1]}, {still_to_go} to go')
 
         try:
-            api_request = request.Request(f'https://www.strava.com/api/v3/activities/{activity[0]}/streams?keys=latlng&key_by_type=true',
+            api_request = request.Request(f'{api_url}/activities/{activity[0]}/streams?keys=latlng&key_by_type=true',
                                           headers={"Authorization":"Bearer " + token},
                                           method='GET')
             response = request.urlopen(api_request)
         except Exception:
-            print(Exception)
+            logger.exception(f'Unable to collect {activity[1]}, due to: ')
             continue
 
         lat_lng_of_ride = pd.Series(json.loads(response.read())['latlng']['data'], name=activity[1]).astype('object')
 
-        complete_latlng += [lat_lng_of_ride]
-
-        #complete_latlng = pd.concat([complete_latlng, lat_long_of_stream], axis=1, ignore_index=True)
+        total_latlong += [lat_lng_of_ride]
 
     with open('Data3.pkl', 'wb') as pklfile:
-        pickle.dump(complete_latlng, pklfile)
-
-    #complete_latlng.to_pickle('Data.pkl')
+        pickle.dump(total_latlong,  pklfile)
 
     return 'Success'
-
-details = collect_user_details()
-activities = collect_all_user_activities(*details)
-collect_activities_streams(*activities)
-

@@ -14,11 +14,19 @@ def collect_config(path: str):
     return config
 
 config = collect_config('config.yaml')
-
 client_id = config['client_id']
 client_secret = config['client_secret']
 authorization_base_url = 'https://www.strava.com/oauth/authorize'
 token_url = 'https://www.strava.com/oauth/token'
+root_url = 'https://www.strava.com/api/v3'
+
+
+@app.route("/county_map", methods=['GET'])
+def collect_activities():
+
+    strava = OAuth2Session(client_id, token=session['oauth_token'])
+
+    return jsonify(strava.get(f'{root_url}/athlete').json())
 
 
 @app.route("/")

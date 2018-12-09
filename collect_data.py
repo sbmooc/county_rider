@@ -1,14 +1,13 @@
 """
-A module to collect details from users and to return an authorization token for use.
+A module to collect necessary data from Strava.
 """
+import json
 import logging
 from urllib import request
-import json
+
+import geopandas
 import pandas as pd
-import yaml
-
-import pickle
-
+from shapely.geometry import Point
 
 #TODO - ADD LOGGING
 
@@ -16,18 +15,8 @@ logger = logging.getLogger(__name__)
 
 api_url = 'https://www.strava.com/api/v3'
 
-def collect_user_details():
 
-    with open('config.yaml') as config:
-        user_details = yaml.safe_load(config)
-
-    user_id = str(user_details['user_id'])
-    access_token = user_details['token']
-
-    return user_id, access_token
-
-
-def collect_activities(page, token):
+def collect_activities(page: int, token: str):
 
     url_req = request.Request(f'{api_url}/athlete/activities?page={page}&per_page=100',
                               headers={"Authorization":"Bearer " + token},
@@ -55,10 +44,12 @@ def collect_all_user_activities(token: str):
         else:
             complete = True
 
-    return list_ids, token
+    return list_ids
 
 
-def collect_activities_streams(activities: list, token: str):
+def collect_activities_streams(token: str) -> list:
+
+    activities = collect_all_user_activities(token)
 
     total_latlong = []
 
@@ -77,10 +68,27 @@ def collect_activities_streams(activities: list, token: str):
             continue
 
         lat_lng_of_ride = pd.Series(json.loads(response.read())['latlng']['data'], name=activity[1]).astype('object')
-
         total_latlong += [lat_lng_of_ride]
 
-    with open('Data3.pkl', 'wb') as pklfile:
-        pickle.dump(total_latlong,  pklfile)
+        if num > 4:
+            break
 
-    return 'Success'
+    return total_latlong
+
+
+def geo_code_data(activities: list) -> pd.DataFrame:
+
+    geo_list = []
+
+    def _reverse_row(row):
+
+        row.reverse()
+
+    for activity in activities:
+
+        activity.apply(_reverse_row)
+
+        geo_list += [geopandas.GeoSeries(activity.apply(Point))]
+
+    return geo_list
+

@@ -1,7 +1,7 @@
 from unittest import TestCase
 import mock
 from requests_oauthlib import OAuth2Session
-import county_rider
+import endpoints
 
 
 class FlaskTests(TestCase):
@@ -11,6 +11,6 @@ class FlaskTests(TestCase):
 
         mock_session.return_value = OAuth2Session()
 
-        print(county_rider.collect_activities())
+        print(endpoints.collect_activities())
 
         a = 'a'

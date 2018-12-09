@@ -3,6 +3,7 @@ from flask import Flask, request, redirect, session, url_for
 from flask.json import jsonify
 import os
 import yaml
+import collect_data
 
 app = Flask(__name__)
 
@@ -24,13 +25,18 @@ root_url = 'https://www.strava.com/api/v3'
 @app.route("/county_map", methods=['GET'])
 def collect_activities():
 
-    strava = OAuth2Session(client_id, token=session['oauth_token'])
+    try:
+        OAuth2Session(client_id, token=session['oauth_token'])
+    except KeyError:
+        return redirect(url_for('.log_in'))
 
-    return jsonify(strava.get(f'{root_url}/athlete').json())
+    activity_streams = collect_data.collect_activities_streams(activites, session['oauth_token']['access_token'])
+
+    return print(collect_data.geo_code_data(activity_streams))
 
 
 @app.route("/")
-def demo():
+def log_in():
     """Step 1: User Authorization.
 
     Redirect the user/resource owner to the OAuth provider (i.e. Github)
@@ -71,7 +77,7 @@ def callback():
 
     session['oauth_token'] = token
     #
-    return redirect(url_for('.profile'))
+    return redirect(url_for('.collect_activities'))
 
 
 @app.route("/profile", methods=["GET"])
